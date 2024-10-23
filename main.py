@@ -69,6 +69,9 @@ class HackerNewsBot:
             logger.info(f"Message sent to Telegram: {response.text}")
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to send message to Telegram: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response content: {e.response.content}")
+            logger.error(f"Request data: {data}")
 
     def run(self):
         while True:
