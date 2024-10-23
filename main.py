@@ -28,8 +28,11 @@ class HackerNewsBot:
         """Load the IDs of stories that have already been posted."""
         try:
             with open(POSTED_STORIES_FILE, 'r') as file:
-                return set(file.read().splitlines())
+                posted_stories = set(file.read().splitlines())
+            logger.info(f"Loaded {len(posted_stories)} posted story IDs from file")
+            return posted_stories
         except FileNotFoundError:
+            logger.info("Posted stories file not found. Starting with an empty set.")
             return set()
 
     def save_posted_story(self, story_id: int) -> None:
@@ -37,6 +40,7 @@ class HackerNewsBot:
         with open(POSTED_STORIES_FILE, 'a') as file:
             file.write(f'{story_id}\n')
         self.posted_stories.add(str(story_id))
+        logger.info(f"Saved story ID {story_id} to posted stories file")
 
     def generate_instant_view_url(self, hn_item_id: int) -> Tuple[Optional[str], Optional[str]]:
         """Generate the Instant View URL for a Hacker News story."""
@@ -75,29 +79,35 @@ class HackerNewsBot:
 
     def run(self):
         while True:
-            top_stories = self.fetch_top_stories()
-            stories_posted = 0
+            try:
+                top_stories = self.fetch_top_stories()
+                stories_posted = 0
 
-            for story_id in top_stories:
-                if str(story_id) not in self.posted_stories:
-                    iv_url, article_url = self.generate_instant_view_url(story_id)
-                    if iv_url:
-                        message = (
-                            f'<a href="{iv_url}">Read full article (Instant View)</a>\n'
-                            f'Original article: <a href="{article_url}">{article_url}</a>\n'
-                            f'Comments: <a href="https://news.ycombinator.com/item?id={story_id}">Hacker News Comments</a>'
-                        )
-                        self.send_message_to_telegram(message)
-                        self.save_posted_story(story_id)
-                        stories_posted += 1
+                for story_id in top_stories:
+                    if str(story_id) not in self.posted_stories:
+                        iv_url, article_url = self.generate_instant_view_url(story_id)
+                        if iv_url:
+                            message = (
+                                f'<a href="{iv_url}">Read full article (Instant View)</a>\n'
+                                f'Original article: <a href="{article_url}">{article_url}</a>\n'
+                                f'Comments: <a href="https://news.ycombinator.com/item?id={story_id}">Hacker News Comments</a>'
+                            )
+                            self.send_message_to_telegram(message)
+                            self.save_posted_story(story_id)
+                            stories_posted += 1
+                            logger.info(f"Posted story {story_id}. Total stories posted this run: {stories_posted}")
 
-                        if stories_posted >= 5:  # Limit to 5 stories per run
-                            break
+                            if stories_posted >= 5:  # Post exactly 5 stories per run
+                                break
 
-                        time.sleep(300)  # Wait 5 minutes between posts
+                            time.sleep(60)  # Wait 1 minute between posts within the same run
 
-            logger.info(f"Posted {stories_posted} stories. Waiting for next run...")
-            time.sleep(10800)  # Wait for 3 hours (3 * 60 * 60 seconds)
+                logger.info(f"Posted {stories_posted} stories. Waiting for next run...")
+                time.sleep(10800)  # Wait for 3 hours (3 * 60 * 60 seconds) before the next run
+
+            except Exception as e:
+                logger.error(f"An error occurred during the run: {e}")
+                time.sleep(300)  # Wait for 5 minutes before trying again
 
 def main():
     bot = HackerNewsBot()
