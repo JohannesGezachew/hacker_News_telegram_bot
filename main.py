@@ -71,20 +71,30 @@ class HackerNewsBot:
             logger.error(f"Failed to send message to Telegram: {e}")
 
     def run(self):
-        top_stories = self.fetch_top_stories()
+        while True:
+            top_stories = self.fetch_top_stories()
+            stories_posted = 0
 
-        for story_id in top_stories:
-            if str(story_id) not in self.posted_stories:
-                iv_url, article_url = self.generate_instant_view_url(story_id)
-                if iv_url:
-                    message = (
-                        f'<a href="{iv_url}">Read full article (Instant View)</a>\n'
-                        f'Original article: <a href="{article_url}">{article_url}</a>\n'
-                        f'Comments: <a href="https://news.ycombinator.com/item?id={story_id}">Hacker News Comments</a>'
-                    )
-                    self.send_message_to_telegram(message)
-                    self.save_posted_story(story_id)
-                time.sleep(1)  # Rate limiting
+            for story_id in top_stories:
+                if str(story_id) not in self.posted_stories:
+                    iv_url, article_url = self.generate_instant_view_url(story_id)
+                    if iv_url:
+                        message = (
+                            f'<a href="{iv_url}">Read full article (Instant View)</a>\n'
+                            f'Original article: <a href="{article_url}">{article_url}</a>\n'
+                            f'Comments: <a href="https://news.ycombinator.com/item?id={story_id}">Hacker News Comments</a>'
+                        )
+                        self.send_message_to_telegram(message)
+                        self.save_posted_story(story_id)
+                        stories_posted += 1
+
+                        if stories_posted >= 5:  # Limit to 5 stories per run
+                            break
+
+                        time.sleep(300)  # Wait 5 minutes between posts
+
+            logger.info(f"Posted {stories_posted} stories. Waiting for next run...")
+            time.sleep(10800)  # Wait for 3 hours (3 * 60 * 60 seconds)
 
 def main():
     bot = HackerNewsBot()
