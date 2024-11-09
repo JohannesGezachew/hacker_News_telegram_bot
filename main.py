@@ -120,12 +120,12 @@ class HackerNewsBot:
                             stories_posted += 1
                             logger.info(f"Posted story {story_id}. Total stories posted this run: {stories_posted}")
 
-                            if stories_posted >= 5:
+                            if stories_posted >= 7:
                                 break
 
                             time.sleep(60)
                 logger.info("Waiting for the next run...")
-                time.sleep(10800)
+                time.sleep(7200)
             except Exception as e:
                 logger.error(f"An error occurred during the run: {e}")
                 logger.info("Retrying in 5 minutes...")
