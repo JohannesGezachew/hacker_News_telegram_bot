@@ -90,7 +90,7 @@ class HackerNewsBot:
                     if str(story_id) not in self.posted_stories:
                         iv_url, article_url, article_title = self.generate_instant_view_url(story_id)
                         if iv_url and article_title:
-                            message = f'<a href="{iv_url}">{article_title}</a>'
+                            message = f'<a href="{iv_url}"> <b style = "white">{article_title}</b></a>'
                             reply_markup = {
                                 "inline_keyboard": [
                                     [
