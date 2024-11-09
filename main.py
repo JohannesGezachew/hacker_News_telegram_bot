@@ -2,7 +2,14 @@ import requests
 import urllib.parse
 import logging
 import time
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, HN_API_URL, HN_ITEM_URL, READABILITY_API_URL, POSTED_STORIES_FILE
+from config import (
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHANNEL_ID,
+    HN_API_URL,
+    HN_ITEM_URL,
+    READABILITY_API_URL,
+    POSTED_STORIES_FILE,
+)
 from typing import Tuple, Optional, Set, List
 
 # Configure logging
@@ -62,23 +69,27 @@ class HackerNewsBot:
             return None, None, None
 
     def send_message_to_telegram(self, message: str, reply_markup: Optional[dict] = None) -> None:
-        """Send a message to the Telegram channel with optional reply markup."""
+        """Send a message to the Telegram channel with improved error handling."""
         data = {
             "chat_id": TELEGRAM_CHANNEL_ID,
             "text": message,
-            "parse_mode": "HTML"
+            "parse_mode": "HTML",
         }
         if reply_markup:
             data["reply_markup"] = reply_markup
         try:
-            response = self.session.post(f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage', json=data)
+            response = self.session.post(
+                f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage', json=data
+            )
             response.raise_for_status()
-            logger.info(f"Message sent to Telegram: {response.text}")
+            logger.info("Message sent to Telegram successfully.")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error occurred: {e.response.status_code} {e.response.reason}")
+            logger.debug(f"Response content: {e.response.text}")
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to send message to Telegram: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Response content: {e.response.content}")
-            logger.error(f"Request data: {data}")
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
 
     def run(self):
         while True:
@@ -90,12 +101,12 @@ class HackerNewsBot:
                     if str(story_id) not in self.posted_stories:
                         iv_url, article_url, article_title = self.generate_instant_view_url(story_id)
                         if iv_url and article_title:
-                            message = f'<a href="{iv_url}"> <b style = "white">{article_title}</b></a>'
+                            message = f'<a href="{iv_url}"><b>{article_title}</b></a>'
                             reply_markup = {
                                 "inline_keyboard": [
                                     [
                                         {"text": "Original Article", "url": article_url},
-                                        {"text": "Comment", "url": f"https://news.ycombinator.com/item?id={story_id}"}
+                                        {"text": "Comments", "url": f"https://news.ycombinator.com/item?id={story_id}"},
                                     ]
                                 ]
                             }
@@ -104,17 +115,16 @@ class HackerNewsBot:
                             stories_posted += 1
                             logger.info(f"Posted story {story_id}. Total stories posted this run: {stories_posted}")
 
-                            if stories_posted >= 5:  # Post exactly 5 stories per run
+                            if stories_posted >= 5:
                                 break
 
-                            time.sleep(60)  # Wait 1 minute between posts within the same run
-
-                logger.info(f"Posted {stories_posted} stories. Waiting for next run...")
-                time.sleep(10800)  # Wait for 3 hours (3 * 60 * 60 seconds) before the next run
-
+                            time.sleep(60)
+                logger.info("Waiting for the next run...")
+                time.sleep(10800)
             except Exception as e:
                 logger.error(f"An error occurred during the run: {e}")
-                time.sleep(300)  # Wait for 5 minutes before trying again
+                logger.info("Retrying in 5 minutes...")
+                time.sleep(300)
 
 def main():
     bot = HackerNewsBot()
