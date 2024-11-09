@@ -42,31 +42,34 @@ class HackerNewsBot:
         self.posted_stories.add(str(story_id))
         logger.info(f"Saved story ID {story_id} to posted stories file")
 
-    def generate_instant_view_url(self, hn_item_id: int) -> Tuple[Optional[str], Optional[str]]:
-        """Generate the Instant View URL for a Hacker News story."""
+    def generate_instant_view_url(self, hn_item_id: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """Generate the Instant View URL and fetch the title for a Hacker News story."""
         try:
             hn_item_response = self.session.get(HN_ITEM_URL.format(hn_item_id))
             hn_item_response.raise_for_status()
             hn_item_data = hn_item_response.json()
             article_url = hn_item_data.get('url')
+            article_title = hn_item_data.get('title')
             if article_url:
                 readable_url = f'{READABILITY_API_URL}?url={urllib.parse.quote(article_url, safe="")}'
                 iv_url = f'https://t.me/iv?url={urllib.parse.quote(readable_url, safe="")}&rhash=71b64d09b0a20d'
-                return iv_url, article_url
+                return iv_url, article_url, article_title
             else:
                 logger.warning(f"No URL found for story ID: {hn_item_id}")
-                return None, None
+                return None, None, None
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch item {hn_item_id}: {e}")
-            return None, None
+            return None, None, None
 
-    def send_message_to_telegram(self, message: str) -> None:
-        """Send a message to the Telegram channel."""
+    def send_message_to_telegram(self, message: str, reply_markup: Optional[dict] = None) -> None:
+        """Send a message to the Telegram channel with optional reply markup."""
         data = {
             "chat_id": TELEGRAM_CHANNEL_ID,
             "text": message,
             "parse_mode": "HTML"
         }
+        if reply_markup:
+            data["reply_markup"] = reply_markup
         try:
             response = self.session.post(f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage', json=data)
             response.raise_for_status()
@@ -85,14 +88,18 @@ class HackerNewsBot:
 
                 for story_id in top_stories:
                     if str(story_id) not in self.posted_stories:
-                        iv_url, article_url = self.generate_instant_view_url(story_id)
-                        if iv_url:
-                            message = (
-                                f'<a href="{iv_url}">Read full article (Instant View)</a>\n'
-                                f'Original article: <a href="{article_url}">{article_url}</a>\n'
-                                f'Comments: <a href="https://news.ycombinator.com/item?id={story_id}">Hacker News Comments</a>'
-                            )
-                            self.send_message_to_telegram(message)
+                        iv_url, article_url, article_title = self.generate_instant_view_url(story_id)
+                        if iv_url and article_title:
+                            message = f'<a href="{iv_url}">{article_title}</a>'
+                            reply_markup = {
+                                "inline_keyboard": [
+                                    [
+                                        {"text": "Original Article", "url": article_url},
+                                        {"text": "Comment", "url": f"https://news.ycombinator.com/item?id={story_id}"}
+                                    ]
+                                ]
+                            }
+                            self.send_message_to_telegram(message, reply_markup)
                             self.save_posted_story(story_id)
                             stories_posted += 1
                             logger.info(f"Posted story {story_id}. Total stories posted this run: {stories_posted}")
