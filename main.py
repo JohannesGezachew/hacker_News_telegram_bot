@@ -91,6 +91,19 @@ class HackerNewsBot:
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
 
+    def get_post_content(self, iv_url: str, article_url: str, article_title: str, story_id: int) -> Tuple[str, dict]:
+        """Build the message and reply_markup for a given story."""
+        message = f'<a href="{iv_url}"><b>{article_title}</b></a>'
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "Original Article", "url": article_url},
+                    {"text": "Comments", "url": f"https://news.ycombinator.com/item?id={story_id}"},
+                ]
+            ]
+        }
+        return message, reply_markup
+
     def run(self):
         while True:
             try:
@@ -101,15 +114,7 @@ class HackerNewsBot:
                     if str(story_id) not in self.posted_stories:
                         iv_url, article_url, article_title = self.generate_instant_view_url(story_id)
                         if iv_url and article_title:
-                            message = f'<a href="{iv_url}"><b>{article_title}</b></a>'
-                            reply_markup = {
-                                "inline_keyboard": [
-                                    [
-                                        {"text": "Original Article", "url": article_url},
-                                        {"text": "Comments", "url": f"https://news.ycombinator.com/item?id={story_id}"},
-                                    ]
-                                ]
-                            }
+                            message, reply_markup = self.get_post_content(iv_url, article_url, article_title, story_id)
                             self.send_message_to_telegram(message, reply_markup)
                             self.save_posted_story(story_id)
                             stories_posted += 1
